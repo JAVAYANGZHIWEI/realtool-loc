@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# 环境与密钥
+.env
+.env.*
+*.key
+*.pem
+config.local.*
+
+# 数据（大文件不入库，用README给下载链接）
+data/raw/
+*.zip
+data/*.jsonl.tmp
+
+# 系统
+.DS_Store
+Thumbs.db

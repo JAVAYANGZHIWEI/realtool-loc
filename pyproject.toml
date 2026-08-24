@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "realtool-loc"
+version = "0.1.0"
+description = "A Multilingual Benchmark for Faithfulness of Tool-augmented LLM Agents"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "openai>=1.30",
+    "pydantic>=2.6",
+    "sentence-transformers>=2.7",
+    "rich>=13.7"
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-cov>=5.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

@@ -1,27 +1,44 @@
 # RealTool-Loc
 
-**评估多语言工具增强型 LLM Agent 忠实性（Faithfulness）的基准，以及把忠实性提升 +23.66pp 的 Protected-Slot 占位符策略**
+**评估多语言工具增强型 LLM Agent 忠实性的基准，以及把忠实性提升 +23.66pp 的 Protected-Slot 占位符策略**
 
-论文：*From Tool Results to User Answers: Benchmarking Faithful Multilingual Realization in LLM Agents*（IALP 2026 投稿，第二作者）。
-本仓库是论文配套的最小复刻：把 CorePASS 判定逻辑写成零依赖脚本，核心机制可独立复现。
+论文：*From Tool Results to User Answers: Benchmarking Faithful Multilingual Realization in LLM Agents*（IALP 2026 投稿，第二作者）。本仓库是论文配套的最小复刻：把 CorePASS 判定逻辑写成零依赖脚本，核心机制可独立复现。
 
 [![CI](https://img.shields.io/github/actions/workflow/status/JAVAYANGZHIWEI/realtool-loc/ci.yml?branch=main)](https://github.com/JAVAYANGZHIWEI/realtool-loc/actions)
 [![Python](https://img.shields.io/badge/python-3.11-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-## 背景
+## Main Results
 
-Agent 调用工具时，评测通常只看"最终答案像不像"，没人检查 Agent 填参数时是不是瞎填：航班号不存在也照样填进去（幻觉字段），用户明确给出的不可变信息被悄悄改写。低资源语种（藏语、维语、传统蒙文、阿拉伯字母哈萨克语等）连评测数据都是空白——忠实性无法量化，就无法横向对比模型，也无从定位错误环节。
+**图 1：8 款模型在 ELV 基线与 Protected-Slot 策略下的 CorePASS（均值 52.49 → 76.15）**
 
-为此我们构建了多语言基准 RealTool-Loc：
+![corepass-by-model](results/figures/corepass_by_model.png)
+
+`scripts/plot_results.py` 可复现上图，数据与下表同源（8 模型 × 4 策略 × 512 测试任务 = 16,384 条答案）。
+
+从图里可以读出几个现象：
+
+- **8/8 全正**：没有一款模型因为占位符化而受损，增益 +5.07 ~ +37.11pp
+- **受益最大的是中低档模型**：DeepSeek V4 Pro（+37.11）、V3.2（+36.13）这类基线更容易改写字段值的模型，保护收益也最大；基线最强的 GPT-5.1 只 +5.07——基线能力越强，占位符能补的洞越小
+- **平均线上移 23.66pp**：52.49% → 76.15%，95%CI [18.16, 29.32]
+- **增益不是单类任务撑起来的**：96 个"多词英文语义文本"任务 31.77% → 87.11%（贡献 43.86% 新增通过），扣除后其余 416 任务仍 +16.35pp
+
+## Background
+
+Agent 调用工具时，评测通常只看"最终答案像不像"，没人检查填参数时是不是瞎填：航班号不存在也照样填进去（幻觉字段），用户明确给出的不可变信息被悄悄改写。低资源语种（藏语、维语、传统蒙文、阿拉伯字母哈萨克语等）连评测数据都是空白——忠实性无法量化，就无法横向对比模型，也无从定位错误环节。
+
+## Method
+
+**Protected-Slot** 分两阶段：把不可变/实体/语义类字段值替换成 `[[FIELD_xxx]]` 占位符后再让模型生成，生成完确定性还原；需要本地化的状态字段保持模型生成。动机是防乱编，不是防失败——缺失字段被占位符保护时显式声明缺失、其他字段照常执行，而不是靠模型猜。
+
+## Benchmark & Metric
 
 - **基准**：32 个公开工具 / 128 条静态记录 / 8 语种模板生成 1024 任务（dev/test 各 512，源记录不相交）
 - **指标**：四类字段角色（不可变/实体/语义/状态）+ **CorePASS 复合指标**——7 项确定性检查连乘：语言脚本 L · 必填覆盖 C · 不可变保持 I · 实体保真 E · 语义保真 S · 本地化 Z · 无幻觉 H。一项不过整体 FAIL，无法用强项补偿；规则化、零成本、可复现
-- **策略**：**Protected-Slot**——把不可变/实体/语义值替换成 `[[FIELD_xxx]]` 占位符防止模型改写，生成后确定性还原；需要本地化的状态字段保持模型生成。动机是防乱编，不是防失败
 - **消融**：4 模型 × 64 记录 × 7 条件复合对比诊断（英-多语言差异最大 30.9–37.1pp；显式证据契约 +12.9/+8.2pp）
 - **双辅助评估**：Gemini 3.1 Pro 抽 30% 样本评语义忠实（44.64→64.20）；Claude Sonnet 4.6 Thinking 独立抽 30% 评自然度（3.838→3.475，Δ−0.363 诚实披露）——主指标不依赖 LLM 裁判
 
-## 主结果（8 模型 × CorePASS）
+## Results
 
 | 模型 | ELV (%) | Protected (%) | Δ (pp) |
 |---|---|---|---|
@@ -35,15 +52,14 @@ Agent 调用工具时，评测通常只看"最终答案像不像"，没人检查
 | Kimi K2 Thinking | 55.08 | 78.91 | +23.83 |
 | **平均** | **52.49** | **76.15** | **+23.66** |
 
-Protected-Slot 把平均 CorePASS 从 52.49% 提升到 76.15%（+23.66pp，95%CI [18.16, 29.32]），8 款模型全部为正。其中 96 个"多词英文语义文本"任务 31.77% → 87.11%（+55.34pp，贡献 43.86% 新增通过）；扣除后其余 416 任务仍 +16.35pp，增益不是由单类任务撑起来的。
+## Reproduction
 
-## 仓库内容
-
-论文的完整评测代码与数据在 supplementary；本仓库独立复刻了最核心的判定逻辑：
+论文的完整评测代码与数据在 supplementary；本仓库复刻了最核心的判定逻辑：
 
 ```
 src/corepass_checker.py    字段角色 / Protected-Slot 占位符 / 类型匹配 的判定实现
 tests/                     pytest 单元测试（CI 自动执行）
+scripts/plot_results.py    图 1 的绘制脚本
 ```
 
 ```bash
@@ -63,9 +79,7 @@ FAIL | 查询公司名:统信软件 金额:5200 | 类型失配: 金额(期望int
 CorePASS: 2/4 通过  (论文: Protected-Slot策略 76.15% vs 基线52.49%, +23.66pp)
 ```
 
-关键行为：缺失字段被占位符保护 → PASS（显式声明缺失、其他字段照常执行）；不可变字段被改写 → FAIL。这正是 I/E/S 三类字段值占位符化能带来 +23.66pp 的逻辑所在。
-
-## 数据口径
+## Data Notes
 
 仓库内是 4 case 机制演示（非评测集）；论文中的 76.15% 来自全量实验：8 模型 × 4 策略 × 512 测试任务 = 16,384 条答案、8 语种 × 32 工具 × 1024 任务基准。方向一致、规模不同，绝对数值不可直接比较。
 

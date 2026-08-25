@@ -2,7 +2,7 @@
 
 **评估多语言工具增强型 LLM Agent 忠实性的基准，以及把忠实性提升 +23.66pp 的 Protected-Slot 占位符策略**
 
-论文：*From Tool Results to User Answers: Benchmarking Faithful Multilingual Realization in LLM Agents*（IALP 2026 投稿，第二作者）。本仓库是论文配套的最小复刻：把 CorePASS 判定逻辑写成零依赖脚本，核心机制可独立复现。
+论文：*From Tool Results to User Answers: Benchmarking Faithful Multilingual Realization in LLM Agents*（IALP 2026 投稿，第二作者）。本仓库随论文发布完整制品：1024 任务基准数据（`data/`）、确定性评估器（`src/realtool_loc/`）、四套实现策略 prompt（`prompts/`）与全部结果表（`results/`），评估代码零外部依赖，可直接复现论文数字。
 
 [![CI](https://img.shields.io/github/actions/workflow/status/JAVAYANGZHIWEI/realtool-loc/ci.yml?branch=main)](https://github.com/JAVAYANGZHIWEI/realtool-loc/actions)
 [![Python](https://img.shields.io/badge/python-3.11-blue)](https://www.python.org/)
@@ -54,22 +54,32 @@ Agent 调用工具时，评测通常只看"最终答案像不像"，没人检查
 
 ## Reproduction
 
-论文的完整评测代码与数据在 supplementary；本仓库复刻了最核心的判定逻辑：
+本仓库包含论文的完整制品：
 
 ```
-src/corepass_checker.py    字段角色 / Protected-Slot 占位符 / 类型匹配 的判定实现
-tests/                     pytest 单元测试（CI 自动执行）
-scripts/plot_results.py    图 1 的绘制脚本
+data/                  1024 任务基准 + 448 attribution 任务（见 data/README.md）
+src/realtool_loc/      确定性评估器：字段角色 / Protected-Slot / 多策略 prompt 生成
+prompts/               四种实现策略（naive / field-constrained / ELV / Protected-Slot）
+scripts/               数据校验、拆分复现、结果算术复现、评测运行脚本
+results/               论文全部结果表（frozen CSV）
+tests/                 官方回归测试（unittest）+ 复刻层测试（pytest），CI 自动执行
+src/corepass_checker.py  复刻层：字段角色 / Protected-Slot / 类型匹配 的最小判定实现
+scripts/plot_results.py  图 1 的绘制脚本
 ```
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-python -m src.corepass_checker   # 演示脚本
-pytest
+pytest          # 全部测试
+PYTHONPATH=src python3 scripts/validate_dataset.py    # 数据集完整校验
+PYTHONPATH=src python3 scripts/reproduce_results.py --check   # 复现论文结果数字
+PYTHONPATH=src python3 scripts/evaluate_predictions.py \
+  --predictions examples/predictions.jsonl --output /tmp/example.strict.json \
+  --evaluation-policy strict
+python -m src.corepass_checker   # 复刻层演示（4 case）
 ```
 
-真实输出（4 个 case 覆盖三类核心判定）：
+复刻层真实输出（4 个 case 覆盖三类核心判定）：
 
 ```
 PASS | 查询公司名:统信软件 金额:5200 | -                     <- 全字段正确
@@ -81,7 +91,7 @@ CorePASS: 2/4 通过  (论文: Protected-Slot策略 76.15% vs 基线52.49%, +23.
 
 ## Data Notes
 
-仓库内是 4 case 机制演示（非评测集）；论文中的 76.15% 来自全量实验：8 模型 × 4 策略 × 512 测试任务 = 16,384 条答案、8 语种 × 32 工具 × 1024 任务基准。方向一致、规模不同，绝对数值不可直接比较。
+完整基准数据随仓库发布（`data/realtool_loc.jsonl`，1024 任务，版本 `real_tool_mvp_v3`）。实测与论文的一致性核对见 `data/SCHEMA.md`：除 food 域一条记录的 status/semantic 归类口径差（8 样本）外全部吻合；论文中的 76.15% 对应 8 模型 × 4 策略 × 512 测试任务 = 16,384 条答案，可用 `scripts/reproduce_results.py --check` 复核。
 
 ## License
 

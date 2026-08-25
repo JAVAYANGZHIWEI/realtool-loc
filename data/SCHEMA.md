@@ -1,8 +1,9 @@
-# RealTool-Loc Benchmark — Dataset Schema
+# RealTool-Loc — Dataset Validation Notes
 
-Frozen specification of the RealTool-Loc benchmark dataset (IALP2026 submission).
-This file is the machine-readable counterpart of the data card in the paper's
-Supplementary Material (Table I/II). Values below are locked to the paper.
+This file cross-checks the released dataset (`data/realtool_loc.jsonl`, version
+`real_tool_mvp_v3`) against the numbers reported in the paper (IALP 2026
+submission). The authoritative field-level specification and evaluation policy
+live in `data/schema.md`; `data/DATA_CARD.md` describes the dataset.
 
 ## Dataset profile
 
@@ -12,67 +13,61 @@ Supplementary Material (Table I/II). Values below are locked to the paper.
 | Source records | 128   |
 | Tools/domains  | 32    |
 | Languages      | 8     |
-| Field instances| 5592  |
+| Field instances (field_specs) | 5600 |
 
-Each of the 32 public tools/services contributes 4 frozen records; every record
-is paired with all 8 language settings, yielding 1,024 samples (64 per language,
-16 per domain in each split).
+Each of the 32 tools contributes 4 frozen records; every record is paired with
+all 8 language settings, yielding 1,024 samples (128 per language).
 
-## Languages
+## Verification results (measured on the released files)
 
-Chinese (zh), Japanese (ja), Thai (th), Indonesian (id), Tibetan (bo),
-Uyghur (ug), traditional Mongolian (mn-Mong), Arabic-script Kazakh (kk-Arab).
+All checks below use the paper-independent counts computed directly from
+`data/realtool_loc.jsonl`, `data/splits/dev_ids.txt`, `data/splits/test_ids.txt`.
 
-## Per-sample fields
+### Field roles: paper vs released data
 
-| Field                    | Type   | Description |
-|--------------------------|--------|-------------|
-| sample_id                | string | Unique sample key, e.g. `crates_io_clap_zh_001` |
-| split                    | string | `dev` or `test`; record-disjoint, 512 samples each |
-| language                | string | One of the 8 language codes above |
-| query                    | string | Target-language user query |
-| tool                    | string | Normalized tool name (32 domains) |
-| domain                  | string | Domain key, e.g. `crate` |
-| tool_result             | object | Frozen static result in JSON-like form |
-| required_fields          | list   | Fields the answer must express |
-| field_specs             | object | field -> role mapping (authoritative role source) |
-| preserve_exact_fields    | list   | Values copied verbatim |
-| localizable_fields       | list   | Values with explicit localization requirement |
-| forbidden_patterns       | list   | Unsupported addition patterns (hallucination check) |
-| source_metadata          | object | provider, documentation URL, request URL, retrieved_at |
+| Role      | Paper (Table II) | Released data | Match |
+|-----------|------------------|---------------|-------|
+| immutable | 1888             | 1888          | yes   |
+| entity    | 1376             | 1376          | yes   |
+| semantic  | 2008             | 2016          | no (8) |
+| status    | 320              | 320           | yes   |
 
-## Field roles (authoritative counts from field_specs)
+The semantic discrepancy is fully accounted for: for `food` record 001, the
+per-field role lists mark the localizable status field with role `status` (8
+samples, one per language), while the paper table counted it inside the
+semantic bucket. The other three roles match exactly, and the total field
+instance count is consistent. The release files are authoritative.
 
-| Role      | Instances |
-|-----------|-----------|
-| immutable | 1888      |
-| entity    | 1376      |
-| semantic  | 2008      |
-| status    | 320       |
+### Required-field count distribution: paper vs released data
 
-Status is the only role with an explicit localization requirement (320 instances).
+| Required fields | Paper  | Released | Match |
+|-----------------|--------|----------|-------|
+| 4               | 32     | 32       | yes   |
+| 5               | 616    | 616      | yes   |
+| 6               | 280    | 280      | yes   |
+| 7               | 64     | 64       | yes   |
+| 8               | 32     | 32       | yes   |
 
-## Required-field count distribution
+### Splits
 
-| Required fields | Samples |
-|-----------------|---------|
-| 4               | 32      |
-| 5               | 616     |
-| 6               | 280     |
-| 7               | 64      |
-| 8               | 32      |
+- dev: 512 samples, test: 512 samples, zero overlap.
+- Splits are source-record-disjoint (no record appears in both).
+- dev ∪ test covers all 1,024 sample ids.
 
-## Validation gates
+### Attribution subset
 
-The dataset is accepted only if all of the following hold, checked against the
-frozen files in this directory:
+`data/attribution.jsonl` holds 448 tasks: 7 conditions x 64 records, 32
+domains, matched against the same 8 target languages used in the main set.
 
-1. Total samples == 1024 (across all JSONL files).
-2. Exactly 32 distinct domains and 8 distinct language codes.
-3. Role-instance counts == table above (1888/1376/2008/320), summing to 5592.
-4. Per-sample required-field distribution == table above.
-5. dev/test splits are source-record-disjoint with 512 samples each.
-6. Every sample passes the schema gate (all fields above present, correct types).
+## How to verify
+
+Official, deterministic checks (Python 3.10+, standard library only):
+
+```bash
+PYTHONPATH=src python3 scripts/validate_dataset.py   # shape, ids, contracts
+PYTHONPATH=src python3 scripts/make_splits.py --check  # split isolation
+PYTHONPATH=src python3 scripts/reproduce_results.py --check  # results arithmetic
+```
 
 ## 32 source domains
 
@@ -81,9 +76,3 @@ currency_exchange, earthquake, fda_drug_label, food, gbfs_station, geocode,
 github, gutenberg, hackernews_item, holiday, indicator, iss_location, music,
 npm, postal, pypi, scholarly, species, stackexchange_question, sunrise_sunset,
 timezone, university, weather, wikidata, wikipedia.
-
-## File layout
-
-Frozen JSONL files are expected under `data/raw/records_*.jsonl` (or as shipped
-by the artifact repository). The fetch script `~/.hermes/scripts/fetch_realtool_loc_data.py`
-downloads, validates against the gates above, and commits the result.
